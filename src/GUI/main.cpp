@@ -217,7 +217,7 @@ int main()
 	optionsMenu.addItem(1059,MF_SEPARATOR,"");
 
 		
-	optionsMenu.addItem(1060,MF_STRING,"Disable Logging");//--nometadata
+	optionsMenu.addItem(1060,MF_STRING,"Disable MetaData Ripping");//--nometadata
 	optionsMenu.addItem(1061,MF_STRING,"Disable Log File Creation");//--disablelog
 	optionsMenu.addItem(1062,MF_STRING,"Disable All  Sound Ripping");//--nosound
 	optionsMenu.addItem(1063,MF_STRING,"Disable Talk Subtitle Ripping");//--notlke
@@ -226,8 +226,10 @@ int main()
 	optionsMenu.addItem(1065,MF_STRING,"Disable AWIZ Image Ripping");//--noawiz
 	optionsMenu.addItem(1066,MF_STRING,"Disable CHAR Font  Ripping");//--nochar
 	optionsMenu.addItem(1067,MF_STRING,"Disable DMU  Sound Ripping");//--noextdmu
+	
 	optionsMenu.addItem(1068,MF_STRING,"Disable OBIM Image Ripping");//--noobim
 	optionsMenu.addItem(1069,MF_STRING,"Disable RMIM Image Ripping");//--normim
+	
 
 	optionsMenu.addItem(1070,MF_SEPARATOR,"");
 
@@ -581,7 +583,7 @@ int main()
 			
 			
 			//NON PARAMETER COMMANDS <><><><><><><><><><><><><><><><>
-			if(ID == 1060)//Disable Logging
+			if(ID == 1060)//Disable MetaData Ripping
 			{
 				list[selected].options.push_back(L"--nometadata");
 			}
