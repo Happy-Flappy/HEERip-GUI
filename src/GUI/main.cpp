@@ -205,7 +205,6 @@ int main()
 	optionsMenu.addItem(1052,MF_STRING,"Set Last Room Read");//-end <val>
 	optionsMenu.addItem(1053,MF_STRING,"Set First Room Read");//-start <val>
 
-//BOOKMARK
 
 	optionsMenu.addItem(1054,MF_SEPARATOR,"");
 	
@@ -553,35 +552,26 @@ int main()
 			
 			
 			
-			
-			if(ID == 1051)//Set transparency Color
+			if(selected < list.size() && selected >= 0)
 			{
-				if(selected < list.size() && selected >=0)
-				{
-					//list[selected].options.push_back(L"");
-				}
+
+			//PARAMETER COMMANDS
+			if(ID == 1051)// Set transparency Color
+			{
 				
 			}
-			
 			if(ID == 1052) // Set last room read
 			{
-				if(selected < list.size() && selected >=0)
-				{
-					
-			//		list[selected].options.push_back(L"-end 80");
-				}				
+				
 			}
 			if(ID == 1053) // set first room read
 			{
-				if(selected < list.size() && selected >=0)
-				{
-			//		list[selected].options.push_back(L"-start 80");
-				}				
+				
 			}
+			//etc.
 			
-			///ETC.......
 			
-			
+				
 			//NON PARAMETER COMMANDS <><><><><><><><><><><><><><><><>
 			if(ID == 1060)//Disable MetaData Ripping
 			{
@@ -692,7 +682,7 @@ int main()
 				list[selected].options.push_back(L"--force_akos2c_bitmap");
 			}
 			
-			
+			}
 
 
 			
