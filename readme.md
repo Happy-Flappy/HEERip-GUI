@@ -1,4 +1,4 @@
-# HEErip GUI
+ # HEErip GUI
 * A GUI interface(Made by Me) for the commandline utility HEErip(Made by suppertails66).
 * HEErip is a Humongous Entertainment File Ripper. You can find it here: https://github.com/suppertails66/heerip
 * HEErip GUI offers all of the options available in HEErip console.
