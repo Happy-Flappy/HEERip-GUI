@@ -74,7 +74,6 @@ typedef unsigned long PROPID;
 //Data Types
 #include <type_traits>
 #include <utility>
-#include <mutex>
 //
 
 
@@ -1709,7 +1708,7 @@ namespace ws
 			updateMatrix();
 		    
 		    graphics.SetInterpolationMode(Gdiplus::InterpolationModeNearestNeighbor);
-		    graphics.SetPixelOffsetMode(Gdiplus::PixelOffsetModeNone);
+		    graphics.SetPixelOffsetMode(Gdiplus::PixelOffsetModeHalf);
 		    graphics.SetSmoothingMode(Gdiplus::SmoothingModeNone);
 		    graphics.SetTransform(&matrix);
 		}
@@ -4803,9 +4802,14 @@ namespace ws
 		
 		private:
 		
-		HFONT customFont = nullptr;
+		int litX = 0,litY = 0,litWidth = 0,litHeight = 0;
 		std::string text = "";
 		int x = 0,y = 0,width = 100,height = 100;		
+
+		void setPosLit()
+		{
+			SetWindowPos(hwnd, nullptr, litX, litY, litWidth, litHeight, SWP_NOZORDER | SWP_NOACTIVATE);
+		}
 
 		public:
 		
@@ -4829,18 +4833,30 @@ namespace ws
 			x = xPos;
 			y = yPos;
 			
-			if (hwnd)
-				SetWindowPos(hwnd, nullptr, x, y, width, height, SWP_NOZORDER | SWP_NOACTIVATE);
 		}		
 		
 		void setPosition(ws::Vec2i pos)
 		{
-			setPosition(pos.x, pos.y);
+			x = pos.x;
+			y = pos.y;
+			
 		}
 		
 		ws::Vec2i getPosition()
 		{
 			return {x,y};
+		}
+
+		ws::Vec2i getLiteralPosition()
+		{
+			return {litX,litY};
+		}
+		
+		void setSize(ws::Vec2i size)
+		{
+			width = size.x;
+			height = size.y;
+			
 		}
 		
 		void setSize(int w,int h)
@@ -4848,20 +4864,19 @@ namespace ws
 			width = w;
 			height = h;
 			
-			if (hwnd)
-				SetWindowPos(hwnd, nullptr, x, y, width, height, SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
-		}
-		
-		void setSize(ws::Vec2i size)
-		{
-			setSize(size.x, size.y);
 		}
 		
 		ws::Vec2i getSize()
 		{
 			return {width,height};
 		}
-		
+
+		ws::Vec2i getLiteralSize()
+		{
+			return {litWidth,litHeight};
+		}
+
+				
 		void addStyle(DWORD addedStyle)
 		{
             style |= addedStyle;
@@ -4920,56 +4935,7 @@ namespace ws
 		    return std::string(buffer.data());		    
 		    
 		}
-
-		void setFont(ws::Font &font, ws::Text &textSettings)
-		{
-			if (!hwnd || !font.isValid()) return;
-			
-			if (customFont)
-			{
-				DeleteObject(customFont);
-				customFont = NULL;
-			}
-			
-			Gdiplus::Font* gdipFont = font.getFontHandle();
-			if (!gdipFont) return;
-			
-			Gdiplus::FontFamily family;
-			gdipFont->GetFamily(&family);
-			
-			WCHAR familyName[LF_FACESIZE];
-			family.GetFamilyName(familyName);
-			
-			int style = textSettings.getStyle();
-			bool isBold = (style & Gdiplus::FontStyleBold) != 0;
-			bool isItalic = (style & Gdiplus::FontStyleItalic) != 0;
-			bool isUnderline = (style & Gdiplus::FontStyleUnderline) != 0;
-			bool isStrikeout = (style & Gdiplus::FontStyleStrikeout) != 0;
-			
-			int heightInPixels = textSettings.getCharacterSize();
-			
-			customFont = CreateFontW(
-				-heightInPixels,               
-				0,                             
-				0,                             
-				0,                             
-				isBold ? FW_BOLD : FW_NORMAL, 
-				isItalic ? TRUE : FALSE,       
-				isUnderline ? TRUE : FALSE,    
-				isStrikeout ? TRUE : FALSE,    
-				DEFAULT_CHARSET,               
-				OUT_DEFAULT_PRECIS,            
-				CLIP_DEFAULT_PRECIS,           
-				DEFAULT_QUALITY,               
-				DEFAULT_PITCH | FF_DONTCARE,   
-				familyName                     
-			);
-			
-			if (customFont)
-			{
-				SendMessage(hwnd, WM_SETFONT, (WPARAM)customFont, TRUE);
-			}
-		}
+		
 		
 		
 		bool contains(ws::Vec2i point)
@@ -5011,30 +4977,12 @@ namespace ws
 		
 		
 	};
-
-
-	class Window;
 	
-	class WindowManager
-	{
-		public:
-		static std::map<HWND, ws::Window*> windows;
-		static std::mutex windowsMutex;
-		static bool initialized;
+
+
+	
+	
 		
-		
-		static void init();		
-		static LRESULT CALLBACK GlobalProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
-		static void addWindow(ws::Window* window);
-		static void removeWindow(HWND hwnd);		
-		static Window* GetWindow(HWND hwnd);
-		
-	};
-
-
-	
-	
-	
 	class Window
 	{
 		public:
@@ -5042,9 +4990,7 @@ namespace ws
 		HWND hwnd;	
 
 		private:
-		
-		friend class WindowManager;
-		
+			
 		bool isRunning = false;
 		
 		std::queue<MSG> msgQ;
@@ -5075,18 +5021,123 @@ namespace ws
 		}
 		
 		
-	
+		
+		Window(HWND otherHwnd)
+		{
+			createFromHwnd(otherHwnd);	
+		}
+		
+		
+		
+		bool createFromHwnd(HWND otherHwnd)
+		{
+			if(!otherHwnd)
+			{
+				std::cerr << "Failed to create window from HWND!\n";
+				return false;
+			}
+			
+			
+			WINDOWINFO winInfo;
+            winInfo.cbSize = sizeof(WINDOWINFO);
+            
+            if (!GetWindowInfo(otherHwnd, &winInfo))
+            {
+            	std::cerr << "Failed to create window from HWND!\n";
+				return false;
+			}
+			
+			
+			
+			char title[256];
+            GetWindowTextA(otherHwnd, title, sizeof(title));
+			
+			
+			int width = winInfo.rcClient.right - winInfo.rcClient.left;
+			int height = winInfo.rcClient.bottom - winInfo.rcClient.top;
+			create(width,height,std::string(title),winInfo.dwStyle,winInfo.dwExStyle);
+			if(winInfo.dwWindowStatus == WS_ACTIVECAPTION)
+				setVisible(true);
+			else
+				setVisible(false);	
+			
+			return true;
+		}
+		
+		
+		
+		Window(Window &other)
+		{
+			isRunning = other.isRunning;
+	        msgQ = other.msgQ;
+	        
+	        view = other.view;
+	        
+	        isFullscreen = other.isFullscreen;
+	        windowedRect = other.windowedRect;
+	        
+			
+
+	        
+	        // Copy icex
+	        icex = other.icex;
+	        
+	        
+		    if (other.hwnd) 
+		    {
+		        // Get the other window's properties
+		        RECT rect;
+		        GetWindowRect(other.hwnd, &rect);
+		        
+		        char title[256];
+		        GetWindowTextA(other.hwnd, title, sizeof(title));
+		        
+		        DWORD style = GetWindowLong(other.hwnd, GWL_STYLE);
+		        DWORD exStyle = GetWindowLong(other.hwnd, GWL_EXSTYLE);
+		        
+		        // Create a new window
+		        create(
+		            other.getSize().x,
+		            other.getSize().y,
+		            std::string(title),
+		            style,
+		            exStyle
+		        );
+		        
+		        // Copy the view
+		        view = other.view;
+		        
+		        backBuffer = other.backBuffer;
+		        
+		        setVisible(other.getVisible());
+		        if(other.hasFocus())
+					setFocus();
+		        
+		        
+		        if(other.getFullscreen())
+		        	setFullscreen(true);
+		        
+//		        // Copy backbuffer
+//		        if (other.backBuffer.isValid() && backBuffer.isValid()) {
+//		            delete backBuffer.bitmap;
+//		            backBuffer.bitmap = other.backBuffer.bitmap->Clone(
+//		                0, 0, other.backBuffer.width, other.backBuffer.height, 
+//		                PixelFormat32bppARGB
+//		            );
+//		            backBuffer.width = other.backBuffer.width;
+//		            backBuffer.height = other.backBuffer.height;
+//		        }
+		    }
+		}
+		
+
+
 
 		void create(int width,int height,std::string title,DWORD style = WS_OVERLAPPEDWINDOW, DWORD exStyle = 0)
 		{
-			
-			//Check if manager is initialized and init if so.
-			WindowManager::init();
-			
-			
 			//Note to self: the style must be set this way because hwnd has not been initialized yet!
 			style |= WS_CLIPCHILDREN;
-			//exStyle |= WS_EX_COMPOSITED;
+			exStyle |= WS_EX_COMPOSITED;
 			
 			
 			//This is for initialization of winapi child objects sucg as buttons and textboxes.
@@ -5097,6 +5148,25 @@ namespace ws
 			
 			
 			view.init({0,0,width,height});
+			
+			
+			isRunning = true;
+			
+			
+			HINSTANCE hInstance = GetModuleHandle(nullptr);
+			
+		    WNDCLASS wc = {};
+		    wc.lpfnWndProc = ws::Window::StaticWindowProc;
+		    wc.hInstance = hInstance;
+		    wc.lpszClassName = L"Window";
+		    wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
+		    wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
+		
+		    if (!RegisterClass(&wc)) {
+		        std::cerr << "Failed to register window class!" << std::endl;
+		        exit(-1);
+		    }		
+			
 			
 			
 			hwnd = CreateWindowEx(
@@ -5110,28 +5180,40 @@ namespace ws
 			height,
 			nullptr,
 			nullptr,
-			GetModuleHandle(nullptr),
+			hInstance,
 			this
 			);
 			
 			
 		    if (hwnd == nullptr) {
 		        std::cerr << "Failed to create window!" << std::endl;
-				exit(-1);
+		        exit(-1);
 		    }			
 			
 				
-			//The window manager will add the window in WM_NCCREATE so theres no need to call addWindow() here.
+			
 			
 			backBuffer.create(view.getSize().x,view.getSize().y); 
 			canvas = new Gdiplus::Graphics(backBuffer.bitmap);
 			
 
+            ShowWindow(hwnd, SW_SHOW);
+            UpdateWindow(hwnd);
+
+			
+			windowInstances[hwnd] = this;			
+
+
 			isRunning = true;
+			
 			setVisible(true);
-			UpdateWindow(hwnd);
-			setFocus();						
+			setFocus();
+						
 		}
+
+
+		
+		
 
         ~Window()
         {
@@ -5143,9 +5225,6 @@ namespace ws
 		        delete backBuffer.bitmap;
 		        backBuffer.bitmap = nullptr;
 		    }
-			if (hwnd && IsWindow(hwnd)) {
-				DestroyWindow(hwnd);
-			}			
         }
 		
 		
@@ -5155,97 +5234,9 @@ namespace ws
 		        DestroyWindow(hwnd);
 		    }
 		    isRunning = false;
-		}
-		
-		bool isOpen()
-		{
-			if(!isRunning || !hwnd)
-				return false;
-			
-			MSG msg;
-			while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
-				if (msg.message == WM_QUIT) {
-					isRunning = false;
-					return false;
-				}
-				TranslateMessage(&msg);
-				DispatchMessage(&msg);
-				
-				if (msg.hwnd == hwnd) {
-					msgQ.push(msg);
-				}
-			}
-			
-			return isRunning && hwnd;
-		}
-		
-	    bool pollEvent(MSG &message) {
-	        if (msgQ.empty()) {
-	            return false;
-	        }
-	        
-	        message = msgQ.front();
-	        msgQ.pop();
-	        return true;
-	    }	
-		
-	    void clear(Gdiplus::Color color = Gdiplus::Color(255,0,0,0)) 
-		{
-			if(!hwnd)
-				return;
-				
-			
-		    // Clean up old resources
-		    if (canvas) {
-		        delete canvas;
-		        canvas = nullptr;
-		    }
-		    //Do the cleanup here or suffer memory overload
-		    if (backBuffer.bitmap) {
-		        delete backBuffer.bitmap;
-		        backBuffer.bitmap = nullptr;
-		    }
 		    
-			backBuffer.create(view.getSize().x,view.getSize().y);
-		    canvas = new Gdiplus::Graphics(backBuffer.bitmap);
-			
-			canvas->SetInterpolationMode(Gdiplus::InterpolationModeNearestNeighbor);
-			canvas->SetPixelOffsetMode(Gdiplus::PixelOffsetModeNone);
-			canvas->SetSmoothingMode(Gdiplus::SmoothingModeNone);
-
-			canvas->Clear(color);			
-	    }
-		
-		void draw(Drawable &draw)
-		{
-			if(!canvas || !hwnd) return;
-
-
-
-
-
-			Gdiplus::Matrix originalMatrix; //Get the original untransformed matrix so that the drawable can be drawn in world coordinates. 
-        	canvas->GetTransform(&originalMatrix);
-			
-			//Apply the transformation
-			view.apply(*canvas);
-			
-			//draw the object in world coords.
-			draw.drawGlobal(canvas);
-			
-			//Restore the original transformation so that the transform can be applied again next time. 
-			//This is because changes occur and need to be transformed too.
-			canvas->SetTransform(&originalMatrix);
+		    
 		}
-		
-	    void display() 
-		{
-			if(!hwnd)
-		    	return;
-			InvalidateRect(hwnd, NULL, FALSE);
-		    UpdateWindow(hwnd);
-	    }		
-		
 		
 		
 		
@@ -5259,6 +5250,8 @@ namespace ws
 			return backBuffer.getPixel(x,y).GetValue();
 		}
 		
+		
+		
 		std::string getTitle()
 		{
 			if(!hwnd)
@@ -5269,6 +5262,7 @@ namespace ws
 			return std::string(title);			
 		}
 		
+		
 		void setTitle(std::string title)
 		{
 			if(!hwnd)
@@ -5276,15 +5270,18 @@ namespace ws
 			SetWindowTextA(hwnd,ws::TO_LPCSTR(title));
 		}
 		
+		
 		void setView(ws::View &v)
 		{
 			view = v;
 		}
 		
+		
 		ws::View getView()
 		{
 			return view;
 		}
+		
 		
 		void setVisible(bool val)
 		{
@@ -5304,6 +5301,8 @@ namespace ws
 			return IsWindowVisible(hwnd);
 		}
 		
+		
+		
 		void setFocus()
 		{
 			SetFocus(hwnd);
@@ -5315,10 +5314,13 @@ namespace ws
 			return (focus == hwnd);
 		}
 		
+		
+		
 		void setLayerAfter(HWND lastHwnd)
 		{
 			SetWindowPos(hwnd,lastHwnd,0,0,0,0,SWP_NOMOVE | SWP_NOSIZE);
 		}
+		
 		
 		void addStyle(DWORD style)
 		{
@@ -5354,6 +5356,7 @@ namespace ws
 			SetWindowLongA(hwnd,GWL_STYLE,style);			
 		}
 
+
 		void addExStyle(DWORD style)
 		{
 			if(!hwnd)
@@ -5388,16 +5391,20 @@ namespace ws
 			SetWindowLongA(hwnd,GWL_EXSTYLE,style);			
 		}
 
+		
+		
 		DWORD getExStyle()
 		{	
 			return GetWindowLong(hwnd, GWL_EXSTYLE);
 		}
+		
 	    
 	    DWORD getStyle()
 	    {
 	    	return GetWindowLong(hwnd, GWL_STYLE);
             
 		}
+	    
 	    
 	    bool hasStyle(DWORD checkStyle)
 	    {
@@ -5408,6 +5415,8 @@ namespace ws
 	    {
 	    	return (getExStyle() & checkStyle);
 		}
+		
+		
 		
 		void setSize(ws::Vec2i size)
 		{
@@ -5423,25 +5432,28 @@ namespace ws
 				return;
 			}
 	    	SetWindowPos(hwnd, 
-			nullptr, 
+			0, 
 			0, 
 			0, 
 			screenWidth, 
 			screenHeight,
-			SWP_NOMOVE | SWP_NOZORDER | SWP_FRAMECHANGED);
+			SWP_FRAMECHANGED | SWP_SHOWWINDOW);
             
 		}
 		
+		
 		ws::Vec2i getSize()
 		{
-			RECT rect;
-			GetClientRect(hwnd, &rect);
+  
+            RECT rect;
+            GetWindowRect(hwnd, &rect);  
             int width = rect.right - rect.left;
             int height = rect.bottom - rect.top;
 
 
 			return ws::Vec2i(width,height);			
 		}
+		
 		
 		void setPosition(ws::Vec2i pos)
 		{
@@ -5451,12 +5463,12 @@ namespace ws
 		void setPosition(int posx,int posy)
 		{
 	    	SetWindowPos(hwnd, 
-			nullptr, 
+			0, 
 			posx, 
 			posy, 
 			0, 
 			0,
-			SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);			
+			SWP_FRAMECHANGED | SWP_SHOWWINDOW);			
 		}
 		
 		ws::Vec2i getPosition()
@@ -5473,6 +5485,9 @@ namespace ws
             
 			return ws::Vec2i(clientRect.left,clientRect.top);			
 		}
+		
+	    
+
 
 	    void setFullscreen(bool fullscreen) 
 		{
@@ -5504,35 +5519,48 @@ namespace ws
 	        }
 	    }
 	    
+	    
 	    bool getFullscreen() const {
 	        return isFullscreen;
 	    }
+
+
 
 		void setChromaKey(ws::Hue hue)//losing window control for some reason
 		{
 			addExStyle(WS_EX_LAYERED);
 			SetLayeredWindowAttributes(hwnd,RGB(hue.r,hue.g,hue.b),hue.a,LWA_COLORKEY | LWA_ALPHA);
 		}
+
+
 		
 		ws::Vec2i toWorld(int x,int y)
 		{
 			return view.toWorld(x,y,getSize());
 		}
 		
+		
 		ws::Vec2i toWorld(ws::Vec2i pos)
 		{
 			return toWorld(pos.x,pos.y);
 		}
+		
 		
 		ws::Vec2i toScreen(int x,int y)
 		{
 			return view.toScreen(x,y,getSize());
 		}
 		
+		
 		ws::Vec2i toScreen(ws::Vec2i pos)
 		{
 			return toScreen(pos.x,pos.y);
 		}
+		
+		
+		
+		
+
 
 		void addChild(ws::Child &child)
 		{
@@ -5562,26 +5590,179 @@ namespace ws
 				}
 			}			
 			return false;
-		}		
+		}
+
+		
+		
+		
+		bool isOpen()
+		{
+			
+			if(!isRunning || !hwnd)
+				return false;
+				
+	        MSG msg;
+			while (PeekMessage(&msg, hwnd, 0, 0, PM_REMOVE)) 
+			{
+				if (msg.message == WM_QUIT) {
+					isRunning = false;
+					break;
+				}
+				
+				TranslateMessage(&msg);
+				DispatchMessage(&msg);
+				msgQ.push(msg);
+	        }
+ 
+			return isRunning;
+
+		}
+		
+		
+		
+		
+		
+	
+		
+		
+		
+	    bool pollEvent(MSG &message) {
+	        if (msgQ.empty()) {
+	            return false;
+	        }
+	        
+	        message = msgQ.front();
+	        msgQ.pop();
+	        return true;
+	    }	
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+	    void clear(Gdiplus::Color color = Gdiplus::Color(255,0,0,0)) 
+		{
+			if(!hwnd)
+				return;
+				
+			
+		    // Clean up old resources
+		    if (canvas) {
+		        delete canvas;
+		        canvas = nullptr;
+		    }
+		    //Do the cleanup here or suffer memory overload
+		    if (backBuffer.bitmap) {
+		        delete backBuffer.bitmap;
+		        backBuffer.bitmap = nullptr;
+		    }
+		    backBuffer.create(view.getSize().x,view.getSize().y);
+		    canvas = new Gdiplus::Graphics(backBuffer.bitmap);
+			canvas->Clear(color);
+	    }
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		void draw(Drawable &draw)
+		{
+			if(!canvas || !hwnd) return;
+
+
+
+
+
+			Gdiplus::Matrix originalMatrix; //Get the original untransformed matrix so that the drawable can be drawn in world coordinates. 
+        	canvas->GetTransform(&originalMatrix);
+			
+			//Apply the transformation
+			view.apply(*canvas);
+			
+			//draw the object in world coords.
+			draw.drawGlobal(canvas);
+			
+			//Restore the original transformation so that the transform can be applied again next time. 
+			//This is because changes occur and need to be transformed too.
+			canvas->SetTransform(&originalMatrix);
+		}
+		
+		
+		
+		
+		
+		
+		
+	    void display() 
+		{
+			if(!hwnd)
+		    	return;
+			InvalidateRect(hwnd, NULL, FALSE);
+		    UpdateWindow(hwnd);
+	    }		
+		
+		
+		
+	
+		
+		
+		
+		
 		
 		private:
+						
+			
 		
-		LRESULT handleMessage(UINT uMsg,WPARAM wParam,LPARAM lParam)
-		{
+		
+
+        // Static map to store window instances
+        static std::map<HWND, Window*> windowInstances;		
+
+		
+        static LRESULT CALLBACK StaticWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+        {
+            Window* pWindow = nullptr;
+            
+            if (uMsg == WM_NCCREATE) {
+                CREATESTRUCT* pCreate = reinterpret_cast<CREATESTRUCT*>(lParam);
+                pWindow = reinterpret_cast<Window*>(pCreate->lpCreateParams);
+                SetWindowLongPtr(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(pWindow));
+            } else {
+                pWindow = reinterpret_cast<Window*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
+            }
+            
+            if (pWindow) {
+                return pWindow->WindowProc(hwnd, uMsg, wParam, lParam);
+            }
+            
+            return DefWindowProc(hwnd, uMsg, wParam, lParam);
+        }	
+		
+	
+        LRESULT WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+        {
+
 
             switch (uMsg) {
 	            case WM_DESTROY:
-					WindowManager::removeWindow(hwnd);
-					isRunning = false;
-					if (WindowManager::windows.empty())
-						PostQuitMessage(0);
+	                PostQuitMessage(0);
+	                isRunning = false;
 	                return 0;
-	            
-				case WM_CLOSE:
-					DestroyWindow(hwnd);
-					return 0;
-				
-				
+	                
 	            case WM_PAINT: {
 	            	
 	            	
@@ -5606,7 +5787,6 @@ namespace ws
 				            //SetStretchBltMode(hdc, HALFTONE); //For better quality stretching - Causes blur though! (NOT GOOD FOR CLEAN STRETCHING)
 				            SetBrushOrgEx(hdc, 0, 0, NULL);
 							
-							SetStretchBltMode(hdc, COLORONCOLOR);
 							StretchBlt(hdc,0,0,getSize().x,getSize().y,hdcMem,0,0,view.getSize().x,view.getSize().y,SRCCOPY);
 							
 							
@@ -5628,105 +5808,53 @@ namespace ws
 	                return 0;
 
 	            }
-				case WM_ERASEBKGND:
-					return 1;
-				default:
-				{
-					return DefWindowProc(hwnd, uMsg, wParam, lParam);					
-				}
-				
+	            
 
+				
+				
+				
+				
 	        }
+			
 			
             
             return DefWindowProc(hwnd, uMsg, wParam, lParam);
         }
+        
+        
+        
+		
+		
+        
+				
 		
 		bool isFullscreen = false;
 		RECT windowedRect; // Stores window position/size when not fullscreen
-    	DWORD windowedStyle; // Stores window style when not fullscreen			
+    	DWORD windowedStyle; // Stores window style when not fullscreen
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+			
 	};
 	
-	
-	//Window Manager Stuff
-	
-	inline void ws::WindowManager::init()
-	{
-		if(initialized)
-			return;
-		HINSTANCE instance = GetModuleHandle(nullptr);
-		
-		WNDCLASS wc = {};
-		wc.lpfnWndProc = WindowManager::GlobalProc;
-		wc.hInstance = instance;
-		wc.lpszClassName = L"Window";
-		wc.hCursor = LoadCursor(nullptr,IDC_ARROW);
-		wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
-		
-		if(!RegisterClass(&wc))
-		{
-			std::cerr << "Failed to initialize Window"<<std::endl;
-			exit(-1);
-		}
-		initialized = true;
-	}
-	
-	inline LRESULT CALLBACK ws::WindowManager::GlobalProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
-	{
-		//std::lock_guard<std::mutex> lock(windowsMutex);
-		
-		if(msg == WM_NCCREATE)
-		{
-			CREATESTRUCT* pCreate = reinterpret_cast<CREATESTRUCT*>(lParam);
-			ws::Window* pWindow = reinterpret_cast<ws::Window*>(pCreate->lpCreateParams);
-			
-			pWindow->hwnd = hwnd; 
-			
-			windows[hwnd] = pWindow;
-			
-			SetWindowLongPtr(hwnd,GWLP_USERDATA, reinterpret_cast<LONG_PTR>(pWindow));
-			
-			return DefWindowProc(hwnd, msg, wParam, lParam);
-		}
-		
-		ws::Window* pWindow = reinterpret_cast<ws::Window*>(GetWindowLongPtr(hwnd,GWLP_USERDATA));
-		
-		if(pWindow)
-		{
-			return pWindow->handleMessage(msg,wParam,lParam);
-		}
-		
-		return DefWindowProc(hwnd, msg, wParam, lParam);
-	}
-	
-	
-	inline void ws::WindowManager::addWindow(ws::Window* window)
-	{
-		//std::lock_guard<std::mutex> lock(windowsMutex);
-		windows[window->hwnd] = window;			
-	}
-	inline void ws::WindowManager::removeWindow(HWND hwnd)
-	{
-		//std::lock_guard<std::mutex> lock(windowsMutex);
-		windows.erase(hwnd);//hwnd is a pointer to a location. Therefore, it may be used to point to my ws::Window.
-	}
-	
-	inline ws::Window* ws::WindowManager::GetWindow(HWND hwnd)
-	{
-		//std::lock_guard<std::mutex> lock(windowsMutex);
-		auto it = windows.find(hwnd);
-		if (it != windows.end()) {
-			return it->second;
-		}
-		return nullptr;
-	}		
-	
-	
-	
-	std::map<HWND, ws::Window*> ws::WindowManager::windows;
-	std::mutex ws::WindowManager::windowsMutex;
-    bool ws::WindowManager::initialized = false;	
+	// Initialize the static map
+    std::map<HWND, Window*> Window::windowInstances;
+    
+    
 
+		
 }
 
 
@@ -6272,8 +6400,6 @@ namespace ws //CHILD WINDOW API
 
 	class ComboBox : public Child
 	{
-		private:
-		std::vector<std::string> pendingItems;
 	    public:
 	    ComboBox()
 	    {
@@ -6312,21 +6438,8 @@ namespace ws //CHILD WINDOW API
 	            return false;
 	        }
 	        
-			ws::Font font;
-			font.loadFromSystem("Arial");
-			ws::Text text;
-			text.setCharacterSize(15);
-			setFont(font,text);
-			
 	        // Set extended UI for better appearance
 	        SendMessage(hwnd, CB_SETEXTENDEDUI, (WPARAM)TRUE, 0);
-
-			for (const auto& item : pendingItems)
-			{
-				addItem(item);
-			}
-			pendingItems.clear();
-
 	        
 	        ShowWindow(hwnd, SW_SHOW);
 	        UpdateWindow(hwnd);
@@ -6334,54 +6447,52 @@ namespace ws //CHILD WINDOW API
 	        return true;
 	    }
 	    
+	    // Add an item to the dropdown
 	    void addItem(const std::string& item)
 	    {
-			if (!hwnd) {
-				// store for later if hwnd doesn't exist yet
-				pendingItems.push_back(item);
-				return;
-			}
+	        if (!hwnd) return;
 	        SendMessageA(hwnd, CB_ADDSTRING, 0, (LPARAM)item.c_str());
 	    }
 	    
+	    // Add multiple items
 	    void addItems(const std::vector<std::string>& items)
 	    {
-			if (!hwnd) {
-				// store for later if hwnd doesn't exist yet
-				for(int a=0;a<items.size();a++)
-					pendingItems.push_back(items[a]);
-				return;
-			}
+	        if (!hwnd) return;
 	        for (const auto& item : items)
 	        {
 	            addItem(item);
 	        }
 	    }
 	    
+	    // Remove an item by index
 	    void removeItem(int index)
 	    {
 	        if (!hwnd) return;
 	        SendMessage(hwnd, CB_DELETESTRING, (WPARAM)index, 0);
 	    }
 	    
+	    // Clear all items
 	    void clear()
 	    {
 	        if (!hwnd) return;
 	        SendMessage(hwnd, CB_RESETCONTENT, 0, 0);
 	    }
 	    
+	    // Get selected index
 	    int getSelectedIndex()
 	    {
 	        if (!hwnd) return -1;
 	        return (int)SendMessage(hwnd, CB_GETCURSEL, 0, 0);
 	    }
 	    
+	    // Set selected index
 	    void setSelectedIndex(int index)
 	    {
 	        if (!hwnd) return;
 	        SendMessage(hwnd, CB_SETCURSEL, (WPARAM)index, 0);
 	    }
 	    
+	    // Get selected text
 	    std::string getSelectedText()
 	    {
 	        if (!hwnd) return "";
@@ -6398,12 +6509,14 @@ namespace ws //CHILD WINDOW API
 	        return std::string(buffer.data());
 	    }
 	    
+	    // Get item count
 	    int getItemCount()
 	    {
 	        if (!hwnd) return 0;
 	        return (int)SendMessage(hwnd, CB_GETCOUNT, 0, 0);
 	    }
 	    
+	    // Get item text at index
 	    std::string getItemText(int index)
 	    {
 	        if (!hwnd || index < 0) return "";
@@ -6417,6 +6530,7 @@ namespace ws //CHILD WINDOW API
 	        return std::string(buffer.data());
 	    }
 	    
+	    // Check if selection changed in a message
 	    bool selectionChanged(MSG &msg)
 	    {
 	        if (msg.message == WM_COMMAND && HIWORD(msg.wParam) == CBN_SELCHANGE)
@@ -6429,6 +6543,7 @@ namespace ws //CHILD WINDOW API
 	        return false;
 	    }
 	    
+	    // Set dropdown style (CBS_DROPDOWN or CBS_DROPDOWNLIST)
 	    void setDropdownStyle(bool allowEdit = true)
 	    {
 	        if (!hwnd) return;
@@ -6450,6 +6565,7 @@ namespace ws //CHILD WINDOW API
 	                   SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
 	    }
 	    
+	    // Get text from edit control (when using CBS_DROPDOWN)
 	    std::string getEditText()
 	    {
 	        if (!hwnd) return "";
@@ -6465,6 +6581,7 @@ namespace ws //CHILD WINDOW API
 	        return std::string(buffer.data());
 	    }
 	    
+	    // Set edit text (when using CBS_DROPDOWN)
 	    void setEditText(const std::string& text)
 	    {
 	        if (!hwnd) return;
@@ -6517,12 +6634,6 @@ namespace ws //CHILD WINDOW API
 	            std::cerr << "Child Error: Failed to create Button!\n";
 	            return false;
 	        }	
-
-			ws::Font font;
-			font.loadFromSystem("Arial");
-			ws::Text text;
-			text.setCharacterSize(15);
-			setFont(font,text);
 		
 			ShowWindow(hwnd,SW_SHOW);
 			UpdateWindow(hwnd);
@@ -6594,13 +6705,6 @@ namespace ws //CHILD WINDOW API
 	            std::cerr << "Child Error: Failed to create Slider!\n";
 	            return false;
 	        }	
-
-			ws::Font font;
-			font.loadFromSystem("Arial");
-			ws::Text text;
-			text.setCharacterSize(15);
-			setFont(font,text);
-
 		
 			ShowWindow(hwnd,SW_SHOW);
 			UpdateWindow(hwnd);
@@ -6702,13 +6806,6 @@ namespace ws //CHILD WINDOW API
 	            std::cerr << "Child Error: Failed to create Textbox!\n";
 	            return false;
 	        }	
-
-
-			ws::Font font;
-			font.loadFromSystem("Arial");
-			ws::Text text;
-			text.setCharacterSize(15);
-			setFont(font,text);
 		
 			ShowWindow(hwnd,SW_SHOW);
 			UpdateWindow(hwnd);
@@ -6772,12 +6869,6 @@ namespace ws //CHILD WINDOW API
 	            std::cerr << "Child Error: Failed to create Label!\n";
 	            return false;
 	        }	
-
-			ws::Font font;
-			font.loadFromSystem("Arial");
-			ws::Text text;
-			text.setCharacterSize(15);
-			setFont(font,text);
 		
 			ShowWindow(hwnd,SW_SHOW);
 			UpdateWindow(hwnd);

@@ -197,6 +197,8 @@ int main()
 	manageMenu.addItem(1013,MF_STRING,"Remove All Sounds");
 	manageMenu.addItem(1014,MF_STRING,"Remove All Empty");
 	manageMenu.addItem(1015,MF_STRING,"Remove All");
+	manageMenu.addItem(1016,MF_STRING,"Remove All Duplicates");
+	
 
 
 	ws::Dropdown optionsMenu(1050,"Options");	
@@ -323,18 +325,28 @@ int main()
 	
 	int shift = 0;
 
-
-
-
+	ws::Window mwin(300,100,"Input:");
+	
+	ws::TextBox box;
+	box.setSize(300,100);
+	
+	box.removeStyle(ES_MULTILINE);
+	box.addStyle(TCS_SINGLELINE);
+	box.addStyle(ES_NUMBER);
+	
+	
+	mwin.addChild(box);
+	
 	
 	while(window.isOpen())
 	{
 		
-		
+		mwin.isOpen();
 		
 		
 		ws::Vec2i MPosition;
 		shift = slider.getSlidePosition();		
+
 		
 		
 		MSG m;
@@ -342,7 +354,7 @@ int main()
 		{
 			
 			slider.getScroll(m);
-			
+
 
 			if(m.message == WM_KEYDOWN)
 			{
@@ -549,6 +561,26 @@ int main()
 				{}						
 			}
 			
+			if(ID == 1016)//Remove all Duplicates
+			{
+				if(MessageBox(window.hwnd,L"Are you sure you want to remove all duplicate files from your queue list?",L"Are you sure?",MB_YESNO) == IDYES)
+				{
+					for(int a=0;a<list.size();a++)
+					{
+						for(int b=0;b<list.size();b++)
+						{
+							if(list[a].path.filename().string() == list[b].path.filename().string() && a != b)
+							{
+								list.erase(list.begin() + a);
+								a--;
+								break;
+							}
+						}
+					}
+				}
+				while(window.pollEvent(m))
+				{}										
+			}
 			
 			
 			
