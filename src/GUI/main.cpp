@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include <filesystem>
+#include "inputbox.h"
 
 namespace fs = std::filesystem;
 
@@ -325,24 +326,11 @@ int main()
 	
 	int shift = 0;
 
-	ws::Window mwin(300,100,"Input:");
-	
-	ws::TextBox box;
-	box.setSize(300,100);
-	
-	box.removeStyle(ES_MULTILINE);
-	box.addStyle(TCS_SINGLELINE);
-	box.addStyle(ES_NUMBER);
-	
-	
-	mwin.addChild(box);
+	inputMessage("Set Transparency Color: 0 - 250",0,250);
 	
 	
 	while(window.isOpen())
 	{
-		
-		mwin.isOpen();
-		
 		
 		ws::Vec2i MPosition;
 		shift = slider.getSlidePosition();		
@@ -590,18 +578,102 @@ int main()
 			//PARAMETER COMMANDS
 			if(ID == 1051)// Set transparency Color
 			{
-				
+				std::wstring v = inputMessage("Set Transparency Color: 0 - 250",0,250);
+				if(v != L"NULL")
+				{
+					std::wstring w;
+					w  = L"-alttrans ";
+					w += v;
+					list[selected].options.push_back(w);
+				}
+				while(window.pollEvent(m))
+				{}	
 			}
 			if(ID == 1052) // Set last room read
 			{
 				
+				std::wstring v = inputMessage("Set Last Room Read:",0,10000);
+				if(v != L"NULL")
+				{
+					std::wstring w;
+					w  = L"-end ";
+					w += v;
+					list[selected].options.push_back(w);
+				}
+				while(window.pollEvent(m))
+				{}					
 			}
 			if(ID == 1053) // set first room read
 			{
-				
+				std::wstring v = inputMessage("Set First Room Read:",0,10000);
+				if(v != L"NULL")
+				{
+					std::wstring w;
+					w  = L"-start ";
+					w += v;
+					list[selected].options.push_back(w);
+				}				
+				while(window.pollEvent(m))
+				{}					
 			}
-			//etc.
+			if(ID == 1055) // set buffer byte count
+			{
+				std::pair<std::wstring,std::wstring> v = inputMessage2("Set Buffer Byte Count:");
+				if(v.first != L"NULL" && v.second != L"NULL")
+				{
+					std::wstring w;
+					w  = L"-bufsize ";
+					w += v.first;
+					w += L" -b ";
+					w += v.second;
+					list[selected].options.push_back(w);
+				}				
+				while(window.pollEvent(m))
+				{}					
+			}
 			
+			if(ID == 1056) // set first byte decoder
+			{
+				std::pair<std::wstring,std::wstring> v = inputMessage2("Set First Byte Decoder:");
+				if(v.first != L"NULL" && v.second != L"NULL")
+				{
+					std::wstring w;
+					w  = L"-bufsize ";
+					w += v.first;
+					w += L" -d ";
+					w += v.second;
+					list[selected].options.push_back(w);
+				}				
+				while(window.pollEvent(m))
+				{}					
+			}
+			if(ID == 1057) // set ignore trailing bytes in sound
+			{
+				std::wstring v = inputMessage("Set Ignore Trailing Bytes In Sound:",0,10000);
+				if(v != L"NULL")
+				{
+					std::wstring w;
+					w  = L"-ignoreend ";
+					w += v;
+					list[selected].options.push_back(w);
+				}				
+				while(window.pollEvent(m))
+				{}					
+			}			
+			
+			if(ID == 1058) // set ignore init bytes in sound
+			{
+				std::wstring v = inputMessage("Set Ignore Init Bytes In Sound:",0,10000);
+				if(v != L"NULL")
+				{
+					std::wstring w;
+					w  = L"-ignorestart ";
+					w += v;
+					list[selected].options.push_back(w);
+				}				
+				while(window.pollEvent(m))
+				{}					
+			}			
 			
 				
 			//NON PARAMETER COMMANDS <><><><><><><><><><><><><><><><>
