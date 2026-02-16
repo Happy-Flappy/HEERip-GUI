@@ -39,8 +39,7 @@ struct File
 
 int selected = -1;
 std::vector<File> list;
-
-
+std::string autorun = "";
 
 
 void startRip(File file)
@@ -202,8 +201,9 @@ int main()
 	
 
 
-	ws::Dropdown optionsMenu(1050,"Options");	
+	ws::Dropdown optionsMenu(1049,"Options");	
 	
+	optionsMenu.addItem(1050,MF_STRING,"Autorun A Script When Completed");
 	optionsMenu.addItem(1051,MF_STRING,"Set Transparency Color"); //-alttrans <val>
 	optionsMenu.addItem(1052,MF_STRING,"Set Last Room Read");//-end <val>
 	optionsMenu.addItem(1053,MF_STRING,"Set First Room Read");//-start <val>
@@ -253,8 +253,7 @@ int main()
 	optionsMenu.addItem(1081,MF_STRING,"Set RMIM Only");//--rmimonly
 	optionsMenu.addItem(1082,MF_STRING,"Set Sound Only");//--soundonly
 	optionsMenu.addItem(1083,MF_STRING,"Set Subtitles Only");//--tlkeonly
-	
-	optionsMenu.addItem(1084,MF_SEPARATOR,"");
+	optionsMenu.addItem(1084,MF_STRING,"Set Sequences Only");//--sequenceonly
 	
 	optionsMenu.addItem(1085,MF_STRING,"Force Internal Audio Format");//--decodeaudio
 	optionsMenu.addItem(1086,MF_STRING,"Try Decode Only");//--decodeonly
@@ -263,7 +262,9 @@ int main()
 	optionsMenu.addItem(1089,MF_STRING,"Force AKOS Lined Run Length Encoding");//--force_akos2c_rle
 	optionsMenu.addItem(1090,MF_STRING,"Force AKOS Unlined Run Length Encoding");//--force_akos2c_bitmap
 	
+	optionsMenu.addItem(1091,MF_SEPARATOR,"");
 	
+	optionsMenu.addItem(1092,MF_STRING,"Reset Item Settings");
 	
 	
 	
@@ -273,7 +274,6 @@ int main()
 	menu.addDropdown(fileMenu);
 	menu.addDropdown(manageMenu);
 	menu.addDropdown(optionsMenu);
-
 	
 	//resize the window because the menu bar currently has a glitch that does not allow it to be visible immediately.
 	window.setSize(window.getSize());
@@ -326,7 +326,6 @@ int main()
 	
 	int shift = 0;
 
-	inputMessage("Set Transparency Color: 0 - 250",0,250);
 	
 	
 	while(window.isOpen())
@@ -574,8 +573,21 @@ int main()
 			
 			if(selected < list.size() && selected >= 0)
 			{
-
 			//PARAMETER COMMANDS
+			
+			if(ID == 1050) // Autorun a Script when Completed.	
+			{
+				fileWindow.open(&window);
+				std::string name = fileWindow.getFileName();
+				if(name != "")
+				{
+					fs::path path = name;
+					autorun = path.string();
+				}
+				while(window.pollEvent(m))
+				{}				
+			}
+			
 			if(ID == 1051)// Set transparency Color
 			{
 				std::wstring v = inputMessage("Set Transparency Color: 0 - 250",0,250);
@@ -761,6 +773,10 @@ int main()
 			{
 				list[selected].options.push_back(L"--tlkeonly");
 			}
+			if(ID == 1084)
+			{
+				list[selected].options.push_back(L"--sequenceonly");
+			}
 			if(ID == 1085)//Force internal audio format
 			{
 				list[selected].options.push_back(L"--decodeaudio");
@@ -786,6 +802,14 @@ int main()
 				list[selected].options.push_back(L"--force_akos2c_bitmap");
 			}
 			
+			if(ID == 1092)//Reset item settings
+			{
+				list[selected].options.clear();
+			}
+
+			
+			
+			
 			}
 
 
@@ -806,6 +830,23 @@ int main()
 				MessageBox(window.hwnd,L"Export Complete!",L"Completion!",MB_OK);
 				processes.clear();
 				startedExport = false;
+				if(autorun != "")
+				{
+					//run it
+					std::string cmd = autorun;   // modifiable copy
+					STARTUPINFOA si = { sizeof(si) };
+					PROCESS_INFORMATION pi = {0};
+					si.dwFlags = STARTF_USESHOWWINDOW;
+					si.wShowWindow = SW_SHOW;
+
+					if (CreateProcessA(NULL, &cmd[0], NULL, NULL, FALSE, CREATE_NEW_CONSOLE, NULL, NULL, &si, &pi))
+						processes.push_back(pi);
+					else
+					{
+						DWORD error = GetLastError();
+						std::wcerr << L"CreateProcess failed: " << error << std::endl;
+					}				
+				}
 			}
 		}
 		
